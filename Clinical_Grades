@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Grade Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 760px;
+      margin: 30px auto;
+      padding: 20px;
+      line-height: 1.5;
+      color: #222;
+    }
+    h1 { text-align: center; }
+    .box {
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 20px;
+      background: #f9f9f9;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: #005a9c;
+      color: white;
+    }
+    button:hover { background: #00457a; }
+    .result {
+      display: none;
+      border-radius: 10px;
+      padding: 20px;
+      background: #eef7ee;
+      border: 1px solid #8fc58f;
+      font-size: 1.1rem;
+    }
+    .error {
+      display: none;
+      border-radius: 10px;
+      padding: 15px;
+      background: #ffecec;
+      border: 1px solid #d88;
+      color: #900;
+      margin-top: 15px;
+    }
+    .note {
+      font-size: 0.92rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Clinical Grade Calculator</h1>
+
+  <div class="box">
+    <label for="hasPresentation">Do you have a Site Visit Presentation this semester?</label>
+    <select id="hasPresentation" onchange="togglePresentationField()">
+      <option value="yes">Yes</option>
+      <option value="no">No</option>
+    </select>
+
+    <label for="clinicalScore">Clinical Evaluation Score, 0.00 to 3.00</label>
+    <input id="clinicalScore" type="number" min="0" max="3" step="0.01" placeholder="Example: 2.85" />
+    <div class="note">Enter the score as a number from 0.00 to 3.00.</div>
+
+    <label for="dailyLogScore">Daily Log Sheets Percentage</label>
+    <input id="dailyLogScore" type="number" min="0" max="100" step="0.01" placeholder="Example: 95" />
+
+    <div id="presentationField">
+      <label for="presentationScore">Site Visit Presentation Percentage</label>
+      <input id="presentationScore" type="number" min="0" max="100" step="0.01" placeholder="Example: 90" />
+    </div>
+
+    <button onclick="calculateGrade()">Calculate Grade</button>
+    <div id="error" class="error"></div>
+  </div>
+
+  <div id="result" class="result"></div>
+
+  <script>
+    // Converts the 0.00 to 3.00 clinical evaluation score to a percentage.
+    // This uses the exact lookup scale provided by the program.
+    const clinicalScaleText = `
+3.00 100.00
+2.99 99.60
+2.98 99.20
+2.97 98.80
+2.96 98.40
+2.95 98.00
+2.94 97.60
+2.93 97.20
+2.92 96.80
+2.91 96.40
+2.90 96.00
+2.89 95.60
+2.88 95.20
+2.87 94.80
+2.86 94.40
+2.85 94.00
+2.84 93.60
+2.83 93.20
+2.82 92.80
+2.81 92.40
+2.80 92.00
+2.79 91.90
+2.78 91.48
+2.77 91.07
+2.76 90.65
+2.75 90.24
+2.74 89.82
+2.73 89.41
+2.72 88.99
+2.71 88.57
+2.70 88.16
+2.69 87.74
+2.68 87.33
+2.67 86.91
+2.66 86.49
+2.65 86.08
+2.64 85.66
+2.63 85.25
+2.62 84.83
+2.61 84.42
+2.60 84.00
+2.59 83.90
+2.58 83.75
+2.57 83.60
+2.56 83.45
+2.55 83.30
+2.54 83.15
+2.53 82.99
+2.52 82.84
+2.51 82.69
+2.50 82.54
+2.49 82.39
+2.48 82.24
+2.47 82.09
+2.46 81.94
+2.45 81.79
+2.44 81.64
+2.43 81.49
+2.42 81.34
+2.41 81.18
+2.40 81.03
+2.39 80.88
+2.38 80.73
+2.37 80.58
+2.36 80.43
+2.35 80.28
+2.34 80.13
+2.33 79.98
+2.32 79.83
+2.31 79.68
+2.30 79.53
+2.29 79.37
+2.28 79.22
+2.27 79.07
+2.26 78.92
+2.25 78.77
+2.24 78.62
+2.23 78.47
+2.22 78.32
+2.21 78.17
+2.20 78.02
+2.19 77.87
+2.18 77.72
+2.17 77.56
+2.16 77.41
+2.15 77.26
+2.14 77.11
+2.13 76.96
+2.12 76.81
+2.11 76.66
+2.10 76.51
+2.09 76.36
+2.08 76.21
+2.07 76.06
+2.06 75.91
+2.05 75.75
+2.04 75.60
+2.03 75.45
+2.02 75.30
+2.01 75.15
+2.00 75.00
+1.99 74.90
+1.98 74.74
+1.97 74.58
+1.96 74.42
+1.95 74.26
+1.94 74.09
+1.93 73.93
+1.92 73.77
+1.91 73.61
+1.90 73.45
+1.89 73.29
+1.88 73.13
+1.87 72.97
+1.86 72.80
+1.85 72.64
+1.84 72.48
+1.83 72.32
+1.82 72.16
+1.81 72.00
+1.80 71.84
+1.79 71.68
+1.78 71.51
+1.77 71.35
+1.76 71.19
+1.75 71.03
+1.74 70.87
+1.73 70.71
+1.72 70.55
+1.71 70.39
+1.70 70.22
+1.69 70.06
+1.68 69.90
+1.67 69.74
+1.66 69.58
+1.65 69.42
+1.64 69.26
+1.63 69.10
+1.62 68.93
+1.61 68.77
+1.60 68.61
+1.59 68.45
+1.58 68.29
+1.57 68.13
+1.56 67.97
+1.55 67.81
+1.54 67.64
+1.53 67.48
+1.52 67.32
+1.51 67.16
+1.50 67.00
+1.49 74.90
+1.48 74.40
+1.47 73.89
+1.46 73.39
+1.45 72.89
+1.44 72.39
+1.43 71.88
+1.42 71.38
+1.41 70.88
+1.40 70.38
+1.39 69.87
+1.38 69.37
+1.37 68.87
+1.36 68.37
+1.35 67.86
+1.34 67.36
+1.33 66.86
+1.32 66.35
+1.31 65.85
+1.30 65.35
+1.29 64.85
+1.28 64.34
+1.27 63.84
+1.26 63.34
+1.25 62.84
+1.24 62.33
+1.23 61.83
+1.22 61.33
+1.21 60.82
+1.20 60.32
+1.19 59.82
+1.18 59.32
+1.17 58.81
+1.16 58.31
+1.15 57.81
+1.14 57.31
+1.13 56.80
+1.12 56.30
+1.11 55.80
+1.10 55.30
+1.09 54.79
+1.08 54.29
+1.07 53.79
+1.06 53.28
+1.05 52.78
+1.04 52.28
+1.03 51.78
+1.02 51.27
+1.01 50.77
+1.00 50.27
+0.99 49.77
+0.98 49.26
+0.97 48.76
+0.96 48.26
+0.95 47.76
+0.94 47.25
+0.93 46.75
+0.92 46.25
+0.91 45.74
+0.90 45.24
+0.89 44.74
+0.88 44.24
+0.87 43.73
+0.86 43.23
+0.85 42.73
+0.84 42.23
+0.83 41.72
+0.82 41.22
+0.81 40.72
+0.80 40.21
+0.79 39.71
+0.78 39.21
+0.77 38.71
+0.76 38.20
+0.75 37.70
+0.74 37.20
+0.73 36.70
+0.72 36.19
+0.71 35.69
+0.70 35.19
+0.69 34.69
+0.68 34.18
+0.67 33.68
+0.66 33.18
+0.65 32.67
+0.64 32.17
+0.63 31.67
+0.62 31.17
+0.61 30.66
+0.60 30.16
+0.59 29.66
+0.58 29.16
+0.57 28.65
+0.56 28.15
+0.55 27.65
+0.54 27.14
+0.53 26.64
+0.52 26.14
+0.51 25.64
+0.50 25.13
+0.49 24.63
+0.48 24.13
+0.47 23.63
+0.46 23.12
+0.45 22.62
+0.44 22.12
+0.43 21.62
+0.42 21.11
+0.41 20.61
+0.40 20.11
+0.39 19.60
+0.38 19.10
+0.37 18.60
+0.36 18.10
+0.35 17.59
+0.34 17.09
+0.33 16.59
+0.32 16.09
+0.31 15.58
+0.30 15.08
+0.29 14.58
+0.28 14.08
+0.27 13.57
+0.26 13.07
+0.25 12.57
+0.24 12.06
+0.23 11.56
+0.22 11.06
+0.21 10.56
+0.20 10.05
+0.19 9.55
+0.18 9.05
+0.17 8.55
+0.16 8.04
+0.15 7.54
+0.14 7.04
+0.13 6.53
+0.12 6.03
+0.11 5.53
+0.10 5.03
+0.09 4.52
+0.08 4.02
+0.07 3.52
+0.06 3.02
+0.05 2.51
+0.04 2.01
+0.03 1.51
+0.02 1.01
+0.01 0.50
+0.00 0.00
+`;
+
+    const clinicalScale = {};
+    clinicalScaleText.trim().split("\n").forEach(line => {
+      const parts = line.trim().split(/\s+/);
+      clinicalScale[parts[0]] = Number(parts[1]);
+    });
+
+    function togglePresentationField() {
+      const hasPresentation = document.getElementById("hasPresentation").value;
+      document.getElementById("presentationField").style.display = hasPresentation === "yes" ? "block" : "none";
+    }
+
+    function getLetterGrade(percent) {
+      if (percent >= 92) return "A";
+      if (percent >= 84) return "B";
+      if (percent >= 75) return "C";
+      if (percent >= 67) return "D";
+      return "F";
+    }
+
+    function showError(message) {
+      const error = document.getElementById("error");
+      error.textContent = message;
+      error.style.display = "block";
+      document.getElementById("result").style.display = "none";
+    }
+
+    function calculateGrade() {
+      const hasPresentation = document.getElementById("hasPresentation").value === "yes";
+      const clinicalInput = Number(document.getElementById("clinicalScore").value);
+      const dailyLogScore = Number(document.getElementById("dailyLogScore").value);
+      const presentationScore = Number(document.getElementById("presentationScore").value);
+
+      if (isNaN(clinicalInput) || clinicalInput < 0 || clinicalInput > 3) {
+        showError("Please enter a Clinical Evaluation score from 0.00 to 3.00.");
+        return;
+      }
+
+      if (isNaN(dailyLogScore) || dailyLogScore < 0 || dailyLogScore > 100) {
+        showError("Please enter a Daily Log Sheets percentage from 0 to 100.");
+        return;
+      }
+
+      if (hasPresentation && (isNaN(presentationScore) || presentationScore < 0 || presentationScore > 100)) {
+        showError("Please enter a Site Visit Presentation percentage from 0 to 100.");
+        return;
+      }
+
+      const clinicalKey = clinicalInput.toFixed(2);
+      const clinicalPercent = clinicalScale[clinicalKey];
+
+      if (clinicalPercent === undefined) {
+        showError("Clinical Evaluation score must be entered to two decimal places between 0.00 and 3.00.");
+        return;
+      }
+
+      let finalPercent;
+      let formulaText;
+
+      if (hasPresentation) {
+        finalPercent = (clinicalPercent * 0.75) + (dailyLogScore * 0.15) + (presentationScore * 0.10);
+        formulaText = "Clinical Evaluation 75%, Daily Log Sheets 15%, Site Visit Presentation 10%";
+      } else {
+        finalPercent = (clinicalPercent * 0.75) + (dailyLogScore * 0.25);
+        formulaText = "Clinical Evaluation 75%, Daily Log Sheets 25%";
+      }
+
+      const letterGrade = getLetterGrade(finalPercent);
+
+      document.getElementById("error").style.display = "none";
+      const result = document.getElementById("result");
+      result.innerHTML = `
+        <strong>Final Percentage:</strong> ${finalPercent.toFixed(2)}%<br>
+        <strong>Final Letter Grade:</strong> ${letterGrade}<br><br>
+        <strong>Clinical Evaluation Converted Percentage:</strong> ${clinicalPercent.toFixed(2)}%<br>
+        <strong>Grade Distribution Used:</strong> ${formulaText}
+      `;
+      result.style.display = "block";
+    }
+
+    togglePresentationField();
+  </script>
+</body>
+</html>
